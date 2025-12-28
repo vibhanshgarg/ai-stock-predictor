@@ -1,6 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import numpy as np
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 
@@ -39,13 +40,11 @@ if st.button("Predict"):
 
     last_close = float(df['Close'].iloc[-1])
 
-    # ✅ FIXED PREDICTION INPUT
-    input_df = pd.DataFrame(
-        [[last_close]],
-        columns=['Prev_Close']
-    )
-
-    predicted_price = float(model.predict(input_df)[0])
+    # ✅ BULLETPROOF PREDICTION
+    predicted_price = model.predict(
+        np.array([[last_close]], dtype=float)
+    )[0]
+    predicted_price = float(predicted_price)
 
     trend = "UP 📈" if predicted_price > last_close else "DOWN 📉"
 
@@ -61,3 +60,4 @@ if st.button("Predict"):
     st.pyplot(fig)
 
     st.caption("⚠️ Educational purpose only. Not financial advice.")
+
