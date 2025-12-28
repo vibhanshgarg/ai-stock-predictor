@@ -12,9 +12,6 @@ st.write("AI-based stock price prediction using Machine Learning")
 symbol = st.text_input("Enter Stock Symbol (AAPL / TSLA / INFY.NS)", "AAPL")
 
 if st.button("Predict"):
-    # -----------------------------
-    # 1️⃣ FETCH DATA (WORKING PART)
-    # -----------------------------
     data = yf.download(
         symbol,
         period="1y",
@@ -26,11 +23,6 @@ if st.button("Predict"):
         st.error("❌ No data found for this symbol")
         st.stop()
 
-    st.success("✅ Stock data fetched successfully")
-
-    # -----------------------------
-    # 2️⃣ DATA PREPARATION
-    # -----------------------------
     df = data[['Close']].copy()
     df['Prev_Close'] = df['Close'].shift(1)
     df.dropna(inplace=True)
@@ -42,36 +34,29 @@ if st.button("Predict"):
     X = df[['Prev_Close']]
     y = df['Close']
 
-    # -----------------------------
-    # 3️⃣ TRAIN MODEL
-    # -----------------------------
     model = LinearRegression()
     model.fit(X, y)
 
-    # -----------------------------
-    # 4️⃣ PREDICTION (FIXED)
-    # -----------------------------
     last_close = float(df['Close'].iloc[-1])
-    predicted_price = float(model.predict([[last_close]])[0])
+
+    # ✅ FIXED PREDICTION INPUT
+    input_df = pd.DataFrame(
+        [[last_close]],
+        columns=['Prev_Close']
+    )
+
+    predicted_price = float(model.predict(input_df)[0])
 
     trend = "UP 📈" if predicted_price > last_close else "DOWN 📉"
 
-    # -----------------------------
-    # 5️⃣ DISPLAY RESULTS
-    # -----------------------------
     st.subheader("Prediction Result")
     st.write(f"**Previous Close:** ₹ {round(last_close, 2)}")
     st.write(f"**Predicted Price:** ₹ {round(predicted_price, 2)}")
     st.write(f"**Trend:** {trend}")
 
-    # -----------------------------
-    # 6️⃣ VISUALIZATION
-    # -----------------------------
     st.subheader("Stock Price Trend (Last 1 Year)")
     fig, ax = plt.subplots()
     ax.plot(df['Close'], label="Closing Price")
-    ax.set_xlabel("Days")
-    ax.set_ylabel("Price")
     ax.legend()
     st.pyplot(fig)
 
