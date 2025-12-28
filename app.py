@@ -40,12 +40,10 @@ if st.button("Predict"):
 
     last_close = float(df['Close'].iloc[-1])
 
+    # ✅ THIS LINE ENDS THE ERROR FOREVER
     predicted_price = model.predict(
         np.array([[last_close]], dtype=float)
-    )
-
-    # ✅ FIXED HERE
-    predicted_price = float(predicted_price[0])
+    ).item()
 
     trend = "UP 📈" if predicted_price > last_close else "DOWN 📉"
 
