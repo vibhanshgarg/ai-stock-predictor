@@ -40,11 +40,12 @@ if st.button("Predict"):
 
     last_close = float(df['Close'].iloc[-1])
 
-    # ✅ BULLETPROOF PREDICTION
     predicted_price = model.predict(
         np.array([[last_close]], dtype=float)
-    )[0]
-    predicted_price = float(predicted_price)
+    )
+
+    # ✅ FIXED HERE
+    predicted_price = float(predicted_price[0])
 
     trend = "UP 📈" if predicted_price > last_close else "DOWN 📉"
 
@@ -60,4 +61,3 @@ if st.button("Predict"):
     st.pyplot(fig)
 
     st.caption("⚠️ Educational purpose only. Not financial advice.")
-
