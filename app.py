@@ -13,12 +13,11 @@ from tensorflow.keras.layers import LSTM, Dense
 st.set_page_config(page_title="AI Stock Predictor (LSTM)", layout="wide")
 
 API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
-
 if not API_KEY:
     st.error("API key missing. Set ALPHA_VANTAGE_API_KEY.")
     st.stop()
 
-# ---------------- CACHED FETCH ----------------
+# ---------------- CACHED DATA FETCH ----------------
 @st.cache_data(ttl=300)
 def fetch_stock_data(symbol):
     url = "https://www.alphavantage.co/query"
@@ -28,34 +27,51 @@ def fetch_stock_data(symbol):
         "outputsize": "compact",
         "apikey": API_KEY
     }
-    response = requests.get(url, params=params, timeout=10)
-    return response.json()
+    return requests.get(url, params=params, timeout=10).json()
+
+# ---------------- MODEL TRAINING CACHE ----------------
+@st.cache_resource
+def train_lstm(X, y):
+    model = Sequential([
+        LSTM(40, return_sequences=True, input_shape=(X.shape[1], 1)),
+        LSTM(40),
+        Dense(1)
+    ])
+    model.compile(optimizer="adam", loss="mean_squared_error")
+    model.fit(X, y, epochs=3, batch_size=32, verbose=0)
+    return model
 
 # ---------------- SIDEBAR ----------------
-st.sidebar.header("⚙️ Settings")
+st.sidebar.header("⚙️ LSTM Controls")
 symbol = st.sidebar.text_input("Stock Symbol", "AAPL")
-sequence_length = st.sidebar.slider("Sequence Length (Days)", 30, 90, 60)
+sequence_length = st.sidebar.slider(
+    "Days used for prediction (sequence length)",
+    30, 90, 60
+)
+
+st.sidebar.info(
+    "This button trains an LSTM model and predicts future stock prices."
+)
 
 # ---------------- MAIN ----------------
 st.title("📈 AI Stock Market Prediction Tool (LSTM)")
-st.write("Deep Learning based time-series forecasting")
+st.write("Deep Learning based time-series forecasting using LSTM networks")
 
-if st.sidebar.button("Run LSTM Prediction"):
+if st.sidebar.button("🚀 Run LSTM Prediction"):
 
     raw = fetch_stock_data(symbol)
 
     if "Note" in raw:
-        st.warning("⏳ API rate limit reached. Please wait.")
+        st.warning("⏳ API rate limit reached. Please wait 1 minute.")
         st.stop()
 
     if "Time Series (Daily)" not in raw:
-        st.error("❌ Invalid symbol or no data.")
+        st.error("❌ Invalid stock symbol or no data.")
         st.stop()
 
     df = pd.DataFrame.from_dict(
         raw["Time Series (Daily)"], orient="index"
     )
-
     df = df.rename(columns={"4. close": "Close"})
     df["Close"] = df["Close"].astype(float)
     df = df.sort_index()
@@ -66,33 +82,34 @@ if st.sidebar.button("Run LSTM Prediction"):
     scaler = MinMaxScaler()
     scaled_prices = scaler.fit_transform(prices)
 
-    # ---------------- SEQUENCE CREATION ----------------
+    # ---------------- SEQUENCES ----------------
     X, y = [], []
     for i in range(sequence_length, len(scaled_prices)):
         X.append(scaled_prices[i-sequence_length:i, 0])
         y.append(scaled_prices[i, 0])
 
     X, y = np.array(X), np.array(y)
-    X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+    X = X.reshape((X.shape[0], X.shape[1], 1))
 
-    # ---------------- LSTM MODEL ----------------
-    model = Sequential([
-        LSTM(50, return_sequences=True, input_shape=(X.shape[1], 1)),
-        LSTM(50),
-        Dense(1)
-    ])
-
-    model.compile(optimizer="adam", loss="mean_squared_error")
-    model.fit(X, y, epochs=5, batch_size=32, verbose=0)
+    # ---------------- TRAIN MODEL ----------------
+    model = train_lstm(X, y)
 
     # ---------------- NEXT DAY PREDICTION ----------------
     last_sequence = scaled_prices[-sequence_length:]
-    last_sequence = np.reshape(last_sequence, (1, sequence_length, 1))
+    last_sequence = last_sequence.reshape((1, sequence_length, 1))
 
     next_day_scaled = model.predict(last_sequence, verbose=0)
     next_day_price = scaler.inverse_transform(next_day_scaled)[0][0]
 
     last_close = df["Close"].iloc[-1]
+
+    # ---------------- BUY / SELL / HOLD ----------------
+    if next_day_price > last_close * 1.01:
+        signal = "BUY 🟢"
+    elif next_day_price < last_close * 0.99:
+        signal = "SELL 🔴"
+    else:
+        signal = "HOLD ⚪"
 
     # ---------------- 7-DAY FORECAST ----------------
     future_prices = []
@@ -104,22 +121,23 @@ if st.sidebar.button("Run LSTM Prediction"):
         future_prices.append(round(price, 2))
 
         pred_scaled = pred.reshape(1, 1, 1)
-        current_seq = np.append(
-            current_seq[:, 1:, :], pred_scaled, axis=1
-        )
+        current_seq = np.append(current_seq[:, 1:, :], pred_scaled, axis=1)
 
-    # ---------------- DISPLAY ----------------
-    col1, col2 = st.columns(2)
-    col1.metric("Last Close", f"${last_close:.2f}")
-    col2.metric("Next Day Prediction", f"${next_day_price:.2f}")
-
-    st.subheader("📅 7-Day LSTM Forecast")
-    st.table(pd.DataFrame({
+    forecast_df = pd.DataFrame({
         "Day": range(1, 8),
         "Predicted Price ($)": future_prices
-    }))
+    })
 
-    st.subheader("📊 Historical Prices")
+    # ---------------- DISPLAY ----------------
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Last Close", f"${last_close:.2f}")
+    col2.metric("Next Day Prediction", f"${next_day_price:.2f}")
+    col3.metric("Signal", signal)
+
+    st.subheader("📅 7-Day LSTM Forecast")
+    st.table(forecast_df)
+
+    st.subheader("📊 Historical Stock Prices")
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(df["Close"], label="Close Price")
     ax.legend()
@@ -129,9 +147,9 @@ if st.sidebar.button("Run LSTM Prediction"):
 st.markdown("""
 ---
 ### ⚠️ Disclaimer
-This project is for **educational purposes only**.
+This application is for **educational purposes only**.
 
 ### 🧠 Model
 LSTM (Long Short-Term Memory) Neural Network  
-Used for sequential time-series forecasting.
+Used for sequential time-series stock price prediction.
 """)
