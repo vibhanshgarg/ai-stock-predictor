@@ -20,11 +20,12 @@ symbol = st.text_input("Enter Stock Symbol (AAPL, TSLA, MSFT)", "AAPL")
 if st.button("Predict"):
     url = "https://www.alphavantage.co/query"
     params = {
-        "function": "TIME_SERIES_DAILY_ADJUSTED",
-        "symbol": symbol,
-        "outputsize": "compact",
-        "apikey": API_KEY
-    }
+    "function": "TIME_SERIES_DAILY",
+    "symbol": symbol,
+    "outputsize": "compact",
+    "apikey": API_KEY
+}
+
 
     response = requests.get(url, params=params, timeout=10)
     data = response.json()
