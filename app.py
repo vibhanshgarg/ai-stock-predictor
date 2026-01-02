@@ -10,20 +10,25 @@ st.set_page_config(page_title="AI Stock Market Predictor")
 st.title("📈 AI Stock Market Prediction Tool")
 st.write("AI-based stock price prediction using Machine Learning")
 
-# User input
 symbol = st.text_input(
     "Enter Stock Symbol (AAPL, TSLA, INFY.NS)",
     "AAPL"
 )
 
 if st.button("Predict"):
-    data = yf.download(symbol, period="1y", progress=False)
+    data = yf.download(
+        tickers=symbol,
+        period="1y",
+        interval="1d",
+        auto_adjust=False,
+        threads=False,
+        progress=False
+    )
 
-    if data.empty:
-        st.error("❌ No data found. Check the stock symbol.")
+    if data is None or len(data) == 0:
+        st.error("❌ No data available. Try again in a few seconds.")
         st.stop()
 
-    # Prepare data
     df = data[['Close']].copy()
     df['Prev_Close'] = df['Close'].shift(1)
     df.dropna(inplace=True)
@@ -31,25 +36,19 @@ if st.button("Predict"):
     X = df[['Prev_Close']]
     y = df['Close']
 
-    # Train model
     model = LinearRegression()
     model.fit(X, y)
 
     last_close = df['Close'].iloc[-1]
-
-    predicted_price = model.predict(
-        np.array([[last_close]], dtype=float)
-    )[0]
+    predicted_price = model.predict(np.array([[last_close]]))[0]
 
     trend = "UP 📈" if predicted_price > last_close else "DOWN 📉"
 
-    # Results
     st.subheader("Prediction Result")
     st.write(f"Previous Close: ₹ {round(float(last_close), 2)}")
     st.write(f"Predicted Price: ₹ {round(float(predicted_price), 2)}")
     st.write(f"Trend: {trend}")
 
-    # Plot
     st.subheader("Stock Price Trend (Last 1 Year)")
     fig, ax = plt.subplots()
     ax.plot(df['Close'])
@@ -57,4 +56,4 @@ if st.button("Predict"):
     ax.set_ylabel("Price")
     st.pyplot(fig)
 
-    st.caption("⚠️ For educational purposes only. Not financial advice.")
+    st.caption("⚠️ Educational purpose only. Not financial advice.")
